@@ -146,6 +146,15 @@ void loop() {
         jogadores[i].pontos++;
         perguntasFeitas++;
         acertou = true;
+        
+        // mostra a resposta asssim que alguem acertar
+        lcd.setCursor(0, indiceResposta);
+        lcd.print("      ");
+        lcd.setCursor(0, indiceResposta);
+        lcd.print(respostaVerdadeira);
+
+        // salva o tempo em que a resposta foi acertada
+        tempoResposta = millis();
         break; // para sair assim que alguem acertar a respota
       }
     }
@@ -155,19 +164,8 @@ void loop() {
     jogadores[1].resposta = 0;
     jogadores[2].resposta = 0;
 
-    // mostra por 3 segundos qual era a resposta da questão
+    // apos 3 segundos tira a resposta
     if (millis() - tempoResposta >= 3000 && acertou) {
-      mostraResposta = !mostraResposta;
-      tempoResposta = millis();
-    }
-
-    if (mostraResposta && acertou) {
-      lcd.setCursor(0, indiceResposta);
-      lcd.print("      ");
-      lcd.setCursor(0, indiceResposta);
-      lcd.print(respostaVerdadeira);
-    }
-    else if (!mostraResposta && acertou) {
       lcd.clear();
       respondido = true;
       gerado = false;
@@ -195,8 +193,7 @@ void loop() {
   }
 }
 
-void conectaMqtt()
-{
+void conectaMqtt() {
   while (!client.connected())
   {
     Serial.println("Conectando ao Mqtt...");
@@ -215,8 +212,7 @@ void conectaMqtt()
   }
 }
 
-void retornoMqtt(char *topic, byte *payload, unsigned int length)
-{
+void retornoMqtt(char *topic, byte *payload, unsigned int length) {
 
   Serial.print("Mensagem recebida em: ");
   Serial.print(topic);
