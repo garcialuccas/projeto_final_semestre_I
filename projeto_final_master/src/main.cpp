@@ -1,5 +1,4 @@
 // CÓDIGO DO ESP MAIN
-
 #include <Arduino.h>
 #include "internet.h"
 #include <WiFi.h>
@@ -33,7 +32,7 @@ struct Jogador {
 };
 
 // quantidade de jogadores, jogadores conectados e jogadores prontos
-const int qntdJogadores = 3;
+const int qntdJogadores = 2;
 int jogadoresConectados = 0;
 int jogadoresProntos = 0;
 
@@ -46,12 +45,13 @@ Jogador jogadores[qntdJogadores];
 float respostaVerdadeira = 0; // resposta da expressão numerica gerada pelo main
 float x, y; // numeros aleatorios gerados a cada pergunta
 const int maxPerguntas = 10; // serao feitas 10 perguntas até acabar o jogo
-int perguntasFeitas = 0; // guarda quantas perguntas ja foram
 int indiceResposta = 0; // variavel para guardar onde a resposta deve ser escrita no lcd
 
 // variaveis para garantir que os numeros gerados serão gerados apenas uma vez, até serem respondidos.
 bool gerado = false; 
 bool respondido = true;
+bool enviar = false;
+bool enviarAnterior = false;
 
 // variaveis para mostrar a resposta
 unsigned long tempoResposta = 0;
@@ -71,6 +71,8 @@ void retornoMqtt(char *, byte *, unsigned int);
 void gerarResposta(float n, float m);
 void mostrarVencedor();
 void telaInicial();
+void enviarIniciar();
+void enviarFim();
 
 void setup() {
 
@@ -80,12 +82,10 @@ void setup() {
   // colocando os nomes de cada esp em seu respectivo jogador
   jogadores[0].esp = "esp1";
   jogadores[1].esp = "esp2";
-  jogadores[2].esp = "esp3";
 
   // colocando a cor de cada jogador
   jogadores[0].cor = "AZUL";
   jogadores[1].cor = "VERMELHO";
-  jogadores[2].cor = "VERDE";
 
   // configurações da serial
   Serial.begin(115200);
@@ -117,8 +117,10 @@ void loop() {
   if (!client.connected()) conectaMqtt();
 
   if (iniciar) {
-    jogadoresConectados = jogadores[0].conectado + jogadores[1].conectado + jogadores[2].conectado;
-    jogadoresProntos = jogadores[0].iniciar + jogadores[1].iniciar + jogadores[2].iniciar; 
+    jogadoresConectados = jogadores[0].conectado + jogadores[1].conectado;
+    jogadoresProntos = jogadores[0].iniciar + jogadores[1].iniciar;
+
+    if (jogadoresConectados == jogadoresProntos) enviar = true;
   }
 
   if ((jogadoresConectados != jogadoresProntos) || ninguem) {
@@ -126,7 +128,9 @@ void loop() {
     lcd.print(jogadoresConectados);
     return;
   }
-  else {
+
+  if (enviar && !enviarAnterior) {
+    enviarIniciar();
     iniciar = false;
     gerado = false;
   }
@@ -144,7 +148,6 @@ void loop() {
     for (int i = 0; i < qntdJogadores; i++) {
       if (respostaVerdadeira == jogadores[i].resposta) {
         jogadores[i].pontos++;
-        perguntasFeitas++;
         acertou = true;
         
         // mostra a resposta asssim que alguem acertar
@@ -155,6 +158,9 @@ void loop() {
 
         // salva o tempo em que a resposta foi acertada
         tempoResposta = millis();
+
+        if (jogadores[i].pontos == maxPerguntas) mostrarVencedor();
+
         break; // para sair assim que alguem acertar a respota
       }
     }
@@ -162,7 +168,6 @@ void loop() {
     // zerando todas as respostas, para evitar pontos infinitos
     jogadores[0].resposta = 0;
     jogadores[1].resposta = 0;
-    jogadores[2].resposta = 0;
 
     // apos 3 segundos tira a resposta
     if (millis() - tempoResposta >= 3000 && acertou) {
@@ -173,13 +178,6 @@ void loop() {
     }
   }
 
-  if (perguntasFeitas == maxPerguntas) {
-    mostrarVencedor();
-    if (millis() - tempoVencedor >= 10000) {
-      tempoVencedor = millis();
-      vencedor = !vencedor;
-    }
-
     if (!vencedor) {
       gerado = true;
       respondido = true;
@@ -188,9 +186,10 @@ void loop() {
       jogadores[1].iniciar = false;
       jogadores[2].iniciar = false;
       telaInicial();
-      perguntasFeitas = 0;
+      enviarFim();
     }
-  }
+
+  enviarAnterior = enviar;
 }
 
 void conectaMqtt() {
@@ -261,6 +260,8 @@ void retornoMqtt(char *topic, byte *payload, unsigned int length) {
 // funcao que recebe numeros aletorios, gera uma expressao numerica e devolve a resposta
 void gerarResposta(float n, float m) {
 
+  Serial.println("gerando resposta");
+
   int alternativa = random(0, 4);
   float r = 0;
   String operacoes[] = {"+", "-", "*", "/"};
@@ -314,4 +315,24 @@ void telaInicial() {
   lcd.print("INICIAR?");
   lcd.setCursor(0, 1);
   lcd.print("Jogadores: 0");
+}
+
+void enviarIniciar() {
+  String msg;
+  JsonDocument doc;
+
+  doc["fim"] = "0";
+  serializeJson(doc, msg);
+
+  client.publish(mqtt_topic_pub, msg.c_str());
+}
+
+void enviarFim() {
+  String msg;
+  JsonDocument doc;
+
+  doc["fim"] = "1";
+  serializeJson(doc, msg);
+
+  client.publish(mqtt_topic_pub, msg.c_str());
 }
