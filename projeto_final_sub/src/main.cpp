@@ -7,17 +7,18 @@
 #include <LiquidCrystal_I2C.h>
 #include "internet.h"
 
-#define pinApagar 18
-#define pinEnviar 23
+#define pinApagar 13
+#define pinEnviar 34
+#define pinLed 23
 
-const String numEsp = "1";
+const String numEsp = "2";
 
 const unsigned long tempoEsperaConexao = 10000;
 const unsigned long tempoEsperaReconexao = 5000;
 
 const char *mqtt_server = "broker.hivemq.com";
 const int   mqtt_port   = 1883;
-const char *mqtt_client_id = "senai134_esp1_main_match_game";
+const char *mqtt_client_id = "senai134_esp2_sub_match_game";
 const char *mqtt_topic_sub = "main_match_game_pub";
 const char *mqtt_topic_pub = "main_match_game_sub";
 
@@ -50,8 +51,8 @@ char keys[ROW_NUM][COLUMN_NUM] = {
   {'*', '0', '#'}
 };
 
-byte pin_rows[ROW_NUM] = {25, 33, 32, 4}; // conexao dos pinos das linhas
-byte pin_column[COLUMN_NUM] = {14, 27, 26};  // conexao dos pinos das colunas
+byte pin_rows[ROW_NUM] = {26, 25, 33, 32}; // conexao dos pinos das linhas
+byte pin_column[COLUMN_NUM] = {12, 14, 27};  // conexao dos pinos das colunas
 
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM );
 
@@ -64,6 +65,8 @@ String resposta;
 
 void setup() {
 
+  pinMode(pinLed, OUTPUT);
+
   botaoApagar.attach(pinApagar, INPUT_PULLUP);
   botaoEnviar.attach(pinEnviar, INPUT_PULLUP);
 
@@ -74,6 +77,7 @@ void setup() {
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(retornoMqtt);
+  digitalWrite(pinLed, 1);
 
 }
 
@@ -93,7 +97,7 @@ void loop() {
   char key = keypad.getKey();
 
   if (iniciar && !iniciarAnterior) {
-      if (millis() - tempoIniciar > 2000) { 
+      if (millis() - tempoIniciar > 1000) { 
         lcd.clear();
         iniciarAnterior = true;
       }
@@ -119,7 +123,7 @@ void loop() {
   if (botaoApagar.fell() && iniciar) {
     resposta = resposta.substring(0, resposta.length() - 1);
     lcd.setCursor(resposta.length(), 0);
-    lcd.print("  ");
+    lcd.print(" ");
     Serial.println(resposta);
   }
 
@@ -163,13 +167,16 @@ void retornoMqtt(char *topic, byte *payload, unsigned int length)
 
   if (strcmp(doc["fim"], "0") == 0) {
     iniciar = true;
+    iniciarAnterior = false;
     tempoIniciar = millis();
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("VAMOS NESSA!");
   }
-  if (strcmp(doc["fim"], "1") == 0) iniciar = false;
-  
+  if (strcmp(doc["fim"], "1") == 0) {
+    iniciar = false;
+    conectado();
+  }
 }
 
 void conectado() {
@@ -186,6 +193,7 @@ void conectado() {
   serializeJson(doc, msg);
   client.publish(mqtt_topic_pub, msg.c_str());
 
+  lcd.clear();
   lcd.print("iniciar?");
 
 }
@@ -196,7 +204,7 @@ void pronto() {
 
   doc["esp"] = "esp" + numEsp;
   doc["msg"] = "estou pronto";
-  doc["conectado"] = "0";
+  doc["conectado"] = "1";
   doc["iniciar"] = "1";
   doc["resposta"] = "0";
 
@@ -215,8 +223,8 @@ void enviarResposta() {
 
   doc["esp"] = "esp" + numEsp;
   doc["msg"] = "enviando resposta";
-  doc["conectado"] = "0";
-  doc["iniciar"] = "0";
+  doc["conectado"] = "1";
+  doc["iniciar"] = "1";
   doc["resposta"] = resposta;
 
   serializeJson(doc, msg);
