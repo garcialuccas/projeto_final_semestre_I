@@ -124,23 +124,6 @@ void verificarSensor() {
       piscarLeds("vermelho");
       voltarMotor = true;
     }
-
-    if (voltarMotor) {
-
-      digitalWrite(frenteMotorDireita, LOW);
-      digitalWrite(frenteMotorEsquerda, LOW);
-
-      ledcWrite(canalPWM_Direita, 255);
-      ledcWrite(canalPWM_Esquerda, 255);
-
-      digitalWrite(atrasMotorDireita, HIGH);
-      digitalWrite(atrasMotorEsquerda, HIGH);
-
-      tempoMotor = millis();
-      musicafinal();
-      voltarMotor = false;
-
-    }
   }
 }
 
@@ -251,20 +234,38 @@ void loop() {
 
     verificarSensor();
 
-    ledcWrite(analogMotorDireita, velocidadeAzul);
-    ledcWrite(analogMotorEsquerda, velocidadeVermelho);
+    ledcWrite(canalPWM_Esquerda, velocidadeAzul);
+    ledcWrite(canalPWM_Direita, velocidadeVermelho);
     digitalWrite(frenteMotorDireita, HIGH);
     digitalWrite(frenteMotorEsquerda, HIGH);
+
+    if (voltarMotor) {
+
+      JsonDocument doc;
+      String msg;
+
+      doc["vencedor"] = vencedor;
+
+      serializeJson(doc, msg);
+      client.publish(mqtt_topic_pub, msg.c_str());
+
+      digitalWrite(frenteMotorDireita, LOW);
+      digitalWrite(frenteMotorEsquerda, LOW);
+
+      ledcWrite(canalPWM_Direita, 255);
+      ledcWrite(canalPWM_Esquerda, 255);
+
+      digitalWrite(atrasMotorDireita, HIGH);
+      digitalWrite(atrasMotorEsquerda, HIGH);
+
+      tempoMotor = millis();
+      musicafinal();
+      voltarMotor = false;
+
+    }
   }
 
   if (!iniciar && vencedorDetectado) {
-    JsonDocument doc;
-    String msg;
-
-    doc["vencedor"] = vencedor;
-
-    serializeJson(doc, msg);
-    client.publish(mqtt_topic_pub, msg.c_str());
 
     if (millis() - tempoMotor >= 500) {
       digitalWrite(atrasMotorDireita, LOW);
@@ -274,8 +275,5 @@ void loop() {
     vencedorDetectado = false;
 
   }
-
-  Serial.println("rodar");
-  delay(2000);
 
 }

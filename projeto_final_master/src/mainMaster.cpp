@@ -62,6 +62,7 @@ bool acertou = false;
 // variaveis para mostrar o vencedor
 unsigned long tempoVencedor = 0;
 bool vencedor = false;
+String vencedorRecebido = "ninguem";
 
 // variavel para iniciar a contagem de jogadores
 bool iniciar = true;
@@ -85,8 +86,8 @@ void setup() {
   jogadores[1].esp = "esp2";
 
   // colocando a cor de cada jogador
-  jogadores[0].cor = "AZUL";
-  jogadores[1].cor = "VERMELHO";
+  jogadores[0].cor = "azul";
+  jogadores[1].cor = "vermelho";
 
   jogadores[0].resposta = (numeroMaximo * numeroMaximo) + 1;
   jogadores[1].resposta = (numeroMaximo * numeroMaximo) + 1;
@@ -156,6 +157,15 @@ void loop() {
         jogadores[i].pontos++;
         Serial.println(jogadores[i].esp + jogadores[i].pontos);
         acertou = true;
+
+        JsonDocument doc;
+        String sms;
+
+        doc["esp"] = jogadores[i].esp;
+        doc["pontos"] = String(jogadores[i].pontos);
+
+        serializeJson(doc, sms);
+        client.publish(mqtt_topic_pub, sms.c_str());
         
         // mostra a resposta asssim que alguem acertar
         lcd.setCursor(indiceResposta - 2, 0);
@@ -166,7 +176,7 @@ void loop() {
         // salva o tempo em que a resposta foi acertada
         tempoResposta = millis();
 
-        if (jogadores[i].pontos == maxPerguntas) {
+        if (jogadores[i].cor.equals(vencedorRecebido)) {
           mostrarVencedor();
           vencedor = true;
           respondido = true;
@@ -257,6 +267,7 @@ void retornoMqtt(char *topic, byte *payload, unsigned int length) {
   const char *conec = doc["conectado"];
   const char *ini = doc["iniciar"];
   const char *resp = doc["resposta"];
+  const char *venc = doc["vencedor"];
 
   // tratamento e atribuição dos valores recebidos
   for (int i = 0; i < qntdJogadores; i++) {
@@ -269,6 +280,10 @@ void retornoMqtt(char *topic, byte *payload, unsigned int length) {
       }
       if (strcmp(ini, "1") == 0) jogadores[i].iniciar = true;
     }
+  }
+
+  if (strcasecmp(venc, "") != 0) {
+    vencedorRecebido = String(venc);
   }
 }
 
@@ -307,18 +322,7 @@ void mostrarVencedor() {
   lcd.clear();
   lcd.setCursor(0, 0);
 
-  int pMax = 0;
-  int indice = 0;
-
-  for (int j = 0; j < qntdJogadores; j++) {
-    if (jogadores[j].pontos >= pMax) pMax = jogadores[j].pontos;
-  }
-
-  for (int i = 0; i < qntdJogadores; i++) {
-    if (jogadores[i].pontos == pMax) indice = i;
-  }
-
-  lcd.print(jogadores[indice].cor);
+  lcd.print(vencedorRecebido);
   lcd.print(" VENCEU!");
   lcd.setCursor(0, 1);
   lcd.print("PARABENS!");
